@@ -1,0 +1,136 @@
+%channel is defined at rate fs
+dbstop if error  % stop if an error occurs 
+clear all  %  clears work space between runs
+fs=7.68e6;
+Nfftsize=512;
+Mchan=1;
+%Line of site gain
+tau0=(11*1/fs);
+NLoop=1000;
+yvec=zeros(NLoop,1);
+channelgain=zeros(NLoop,1);
+%for loopK=1:NLoop
+    
+%this is the average value over a suite of simulation trials (varies per trial)    
+radioloc.riciankdB=8;
+
+%scattering gain (power delay profile)
+radioloc.pdp    =    [  -8,   -6,  -4 ,   0,   0,   -4 ,     -8,     -9,   -10 ,  -12 ,  -14  ]; %dB scattering response!
+radioloc.PathDelays= [ 0.1,  0.3,  0.5, 0.7, 1.0,   1.3,   15.0,   15.2,   15.7,  17.2,   20.0]*0.2e-6;  %in seconds
+radioloc.ts=1/fs;
+
+%not moving (zero velocity)
+radioloc.dopp=0;
+%%%%%%%%%%%%%%%%%%%%%
+%New Approach
+figure(8)
+hold on
+
+for Tx=1:Mchan
+    for Rx=1:Mchan
+index = randperm(numel(radioloc.pdp));
+B = radioloc.pdp(index);
+[radioloc.h00t] = GenRayleigh(B, radioloc.PathDelays, radioloc.ts,  radioloc.dopp);
+
+%%%%%%%%%%%%%%%
+  %%%%%%%%%%%%%%%
+  %convert the continuous rician channel to discretely sampled
+  radioloc.h00N0=MultiRes(radioloc.h00t, radioloc.PathDelays, radioloc.ts, 'NonLinear');
+  
+  radioloc.h00N = radioloc.h00N0/sqrt(sum(radioloc.h00N0.*conj(radioloc.h00N0)));
+  radiochan(1:length(radioloc.h00N),Rx+(Tx-1)*Mchan)=radioloc.h00N;
+  plot(20*log10(abs(fft(radiochan(1:length(radioloc.h00N),Rx+(Tx-1)*Mchan),Nfftsize))));
+    end
+end
+ % plot(20*log10(abs(fft(radiochan(1:3,1),64))));
+
+for k=1:Mchan^2
+        [radiochan(1:3,k).']
+end
+  %Scattering 
+  %print first five values
+ 
+  channelgain= sum(radioloc.h00N.*conj(radioloc.h00N));
+  
+  
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%BasebandGen Script 
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%
+
+rcrolloff=0.5;   %rolloff Factor for nyquist pulse
+symbolrate=960e3;  %desired symbol rate
+NumSamplesTxPulse=13; %Warning the program can modify this value!
+SampleLaunchPeriod=8;  % period in samples between symbol launches
+EbNodB=8;
+%%%%%%%%%%%%%%%%%
+NumBitsPerSymbol=2;  %2-Tupple bits
+binary_sequence=[1,0,1,0,0,0,0,0,1,1,1,1,1,0,0,0,1,1,1,0,0,1,0,1];
+NumSymbs=length(binary_sequence)/NumBitsPerSymbol;  %Number of symbols 
+b=zeros(1, NumSymbs);
+for k=1:NumSymbs
+    %n-tupple: (e.g. 2-tupple b1,b0 --> 2*b1+b0 mapping to complex coeff.)
+    k0k1=binary_sequence((k-1)*NumBitsPerSymbol+1:k*NumBitsPerSymbol)*[2,1]';
+   switch k0k1;
+% switch binary_sequence((k-1)*NumBitsPerSymbol+1:k*NumBitsPerSymbol)*[2,1]';
+
+        % QPSK Mapping Defined
+        case 0
+            b(k)=exp(1i*((2*pi/4)*0+pi/4));
+        case 1
+            b(k)=exp(1i*((2*pi/4)*1+pi/4));
+        case 3
+            b(k)=exp(1i*((2*pi/4)*2+pi/4));
+        case 2
+            b(k)=exp(1i*((2*pi/4)*3+pi/4));
+    end
+end
+%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%
+
+Es=1;
+p.rcrolloff=rcrolloff;
+p.symbolrate=symbolrate;
+p.NumSamplesTxPulse=NumSamplesTxPulse;
+p.SampleLaunchPeriod=SampleLaunchPeriod;
+a=BasebandGenNew(p, Es,b);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%FOR BASEBAND MODE USE the AWGN Channel
+EbNoLin=10^(EbNodB/10);
+vn=(1/2)/EbNoLin;
+yawgnbase=conv(a.txpulse,radiochan(:,1));
+
+figure(6);
+xax1=a.Ts*(0:length(yawgnbase)-1);
+subplot(2,1,1), plot(xax1, real(yawgnbase));
+xlabel('sample time (sec)');
+ylabel('Real');
+titletext=strcat({'Baseband Signal in AWGN, EbNo='},{num2str(EbNodB)},...
+    {'dB, SamplingFrequency= '}, {num2str(1/a.Ts)});
+title(titletext);
+subplot(2,1,2), plot(xax1, imag(yawgnbase));
+xlabel('sample time (sec)');
+ylabel('Imag');
+%%%%%%%%%%%%%%%%%
+
+
+figure(7);
+fs=1/a.Ts;
+NumPointsFFT=64;
+xax = ([0:NumPointsFFT-1]/NumPointsFFT)*fs;
+yaxdB=20*log10(abs(fft(yawgnbase,NumPointsFFT)));
+% plot([xax-xax(end)/2], [yaxdB(NumPointsFFT/2+1:NumPointsFFT),yaxdB(1:NumPointsFFT/2)], 'b');
+% titletext=strcat({'FFT of 8-PSK Signal, Rsymb='},{num2str(a.symbolrate)},{'Pulse Rolloff= '}, {num2str(a.rcrolloff)},...
+%     {' SamplingRate= '}, {num2str(fs)});
+% xtext='Frequency in Hz';
+% ytext='Baseband Signal Power in dB';
+% xlabel(xtext);
+% ylabel(ytext);
+% title(titletext);
+
+
+
+
