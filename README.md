@@ -14,6 +14,6 @@ An additional conference paper, presented at IEEE 2015 SoSE, was
 inspired on this work which can be found as:
 
 "Cognitive interference avoidance in 4th generation GPS"
-http://ieeexplore.ieee.org/xpl/abstractAuthors.jsp?reload=true&arnumber=7151973
+http://ieeexplore.ieee.org/xpl/articleDetails.jsp?reload=true&arnumber=7151973
 
 Total lines of code: 7753
