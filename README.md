@@ -16,4 +16,4 @@ inspired on this work which can be found as:
 "Cognitive interference avoidance in 4th generation GPS"
 http://ieeexplore.ieee.org/xpl/articleDetails.jsp?reload=true&arnumber=7151973
 
-Total lines of code: 7753
+Total lines of code: 7030
